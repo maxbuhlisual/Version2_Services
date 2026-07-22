@@ -14,6 +14,20 @@ public class UserRepository
         {
             return InMemoryDatabase.Users[id];
         }
+
+        return null;
+    }
+
+    public User? GetByEmail(string email)
+    {
+        foreach (User user in InMemoryDatabase.Users.Values)
+        {
+            if (user.Email == email)
+            {
+                return user;
+            }
+        }
+
         return null;
     }
 }
