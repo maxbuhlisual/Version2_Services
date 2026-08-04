@@ -1,7 +1,8 @@
 using   Domain.Models;
+using Domain.Interfaces;
 namespace Infrastructure.Repositories;
 
-public class UserRepository
+public class UserRepository : IUserRepository
 {
     public void Add(User user)
     {
