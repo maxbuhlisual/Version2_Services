@@ -1,7 +1,9 @@
 using Domain.Models;
+using Domain.Interfaces;
+
 namespace Infrastructure.Repositories;
 
-public class BudgetRepository
+public class BudgetRepository : IBudgetRepository
 {
     public void Add(Budget budget)
     {

@@ -10,8 +10,18 @@ public class ExpenseService
         _expense = expense;
     }
 
-    //public Expense AddExpense(userId, categoryId, amount, date, comment)
-    
-        
-    
+    public Expense AddExpense(Guid userId, Guid categoryId, decimal amount, DateTime date, string? comment)
+    {
+        Expense expense = new Expense()
+        {
+            Id = Guid.NewGuid(),
+            UserId = userId,
+            CategoryId = categoryId,
+            Amount = amount,
+            Date = date,
+            Comment = comment
+        };
+            _expense.Add(expense);
+            return expense;
+    }
 }
