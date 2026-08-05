@@ -1,7 +1,8 @@
 using Domain.Models;
+using Domain.Interfaces;
 namespace Infrastructure.Repositories;
 
-public class ExpenseRepository
+public class ExpenseRepository : IExpenseRepository
 {
     public void Add(Expense expense)
     {

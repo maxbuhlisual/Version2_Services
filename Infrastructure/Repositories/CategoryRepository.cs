@@ -1,7 +1,8 @@
 using Domain.Models;
+using Domain.Interfaces;
 namespace Infrastructure.Repositories;
 
-public class CategoryRepository
+public class CategoryRepository : ICategoryRepository
 {
     public void Add(Category category)
     {
