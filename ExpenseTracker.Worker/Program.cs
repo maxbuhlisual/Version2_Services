@@ -13,6 +13,7 @@ builder.Services.AddScoped<UserService>();
 builder.Services.AddScoped<ExpenseService>();
 builder.Services.AddScoped<CategoryService>();
 builder.Services.AddScoped<BudgetService>();
+builder.Services.AddScoped<ReportService>();
 
 var host = builder.Build();
 host.Run();

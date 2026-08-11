@@ -23,6 +23,15 @@ public class UserService
 
     public User CreateUser(string email, string name, string password)
     {
+        if (string.IsNullOrWhiteSpace(email))
+        {
+            throw new ArgumentException("Email не может быть пустым");
+        }
+        if (string.IsNullOrWhiteSpace(password))
+        {
+            throw new ArgumentException("Пароль не может быть пустым");
+        }
+        
         User user = new User()
         {
             Id = Guid.NewGuid(),
