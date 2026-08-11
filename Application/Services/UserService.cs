@@ -42,4 +42,22 @@ public class UserService
         _userRepository.Add(user);
         return user;
     }
+    public User Login(string email, string password)
+    {
+        User? user = _userRepository.GetByEmail(email);
+
+        if (user == null)
+        {
+            throw new ArgumentException("Неверный email или пароль");
+        }
+
+        string passwordHash = HashPassword(password);
+
+        if (user.PasswordHash != passwordHash)
+        {
+            throw new ArgumentException("Неверный email или пароль");
+        }
+
+        return user;
+    }
 }
