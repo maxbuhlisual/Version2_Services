@@ -20,13 +20,15 @@ public class UsersController : ControllerBase
     public IActionResult Register([FromBody] RegisterRequest request)
     {
         User user = _userService.CreateUser(request.Email, request.Name, request.Password);
-        return Ok(user);
+        UserResponse response = new UserResponse { Id = user.Id, Email = user.Email, Name = user.Name };
+        return Ok(response);
     }
 
     [HttpPost("login")]
     public IActionResult Login([FromBody] LoginRequest request)
     {
         User user = _userService.Login(request.Email, request.Password);
-        return Ok(user);
+        UserResponse response = new UserResponse { Id = user.Id, Email = user.Email, Name = user.Name };
+        return Ok(response);
     }
 }
