@@ -1,6 +1,5 @@
 using Application.Services;
 using Domain.Models;
-using Xunit;
 
 namespace Application.Tests;
 
