@@ -1,12 +1,21 @@
 using Domain.Interfaces;
 using Infrastructure.Repositories;
 using Application.Services;
+using Infrastructure.Data;
+using Dapper;
 
 var builder = WebApplication.CreateBuilder(args);
 
 builder.Services.AddControllers();
 
-builder.Services.AddScoped<IUserRepository, UserRepository>();
+string connectionString = builder.Configuration.GetConnectionString("ExpenseTracker")
+    ?? throw new InvalidOperationException("Не задана строка подключения ExpenseTracker.");
+builder.Services.AddSingleton(new SqliteConnectionFactory(
+    connectionString, builder.Environment.ContentRootPath));
+
+builder.Services.AddSingleton<SqliteDatabaseInitializer>();
+
+builder.Services.AddScoped<IUserRepository, SqliteUserRepository>();
 builder.Services.AddScoped<ICategoryRepository, CategoryRepository>();
 builder.Services.AddScoped<IExpenseRepository, ExpenseRepository>();
 builder.Services.AddScoped<IBudgetRepository, BudgetRepository>();
@@ -21,6 +30,21 @@ builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
 
 var app = builder.Build();
+
+app.Services.GetRequiredService<SqliteDatabaseInitializer>().Initialize();
+
+// Проверяем подключение до начала обработки HTTP-запросов.
+using (var connection = app.Services.GetRequiredService<SqliteConnectionFactory>().CreateConnection())
+{
+    connection.Open();
+    int result = connection.QuerySingle<int>("SELECT 1;");
+    if (result != 1)
+    {
+        throw new InvalidOperationException("Проверка подключения SQLite не пройдена.");
+    }
+    app.Logger.LogInformation("SQLite: SELECT 1 = {Result}. База: {DatabasePath}",
+        result, connection.DataSource);
+}
 
 if (app.Environment.IsDevelopment())
 {
