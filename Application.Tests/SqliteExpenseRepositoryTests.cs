@@ -1,4 +1,5 @@
 using Domain.Models;
+using Domain.Interfaces;
 using Infrastructure.Data;
 using Infrastructure.Repositories;
 
@@ -9,12 +10,22 @@ public sealed class SqliteExpenseRepositoryTests : IDisposable
     private readonly string _directory = Path.Combine(Path.GetTempPath(), "ExpenseTrackerExpenses", Guid.NewGuid().ToString("N"));
     private readonly SqliteConnectionFactory _connections;
     private readonly SqliteExpenseRepository _repository;
+    private readonly SqliteUserRepository _users;
+    private readonly SqliteCategoryRepository _categories;
+    private readonly Guid _userId;
+    private readonly Guid _categoryId;
 
     public SqliteExpenseRepositoryTests()
     {
         _connections = new SqliteConnectionFactory("Data Source=expenses.db;Pooling=False", _directory);
         new SqliteDatabaseInitializer(_connections).Initialize();
         _repository = new SqliteExpenseRepository(_connections);
+        _users = new SqliteUserRepository(_connections);
+        _categories = new SqliteCategoryRepository(_connections);
+        var user = new User { Id = Guid.NewGuid(), Email = $"{Guid.NewGuid():N}@test.invalid", Name = "Test", PasswordHash = "hash" };
+        _users.Add(user); _userId = user.Id;
+        var category = new Category { Id = Guid.NewGuid(), UserId = user.Id, Name = "Test" };
+        _categories.Add(category); _categoryId = category.Id;
     }
 
     [Fact]
@@ -54,9 +65,9 @@ public sealed class SqliteExpenseRepositoryTests : IDisposable
         Assert.Empty(_repository.GetByUserAndDateRange(expense.UserId, expense.Date.AddDays(1), expense.Date));
     }
 
-    private static Expense CreateExpense() => new()
+    private Expense CreateExpense() => new()
     {
-        Id = Guid.NewGuid(), UserId = Guid.NewGuid(), CategoryId = Guid.NewGuid(), Amount = 123.45m,
+        Id = Guid.NewGuid(), UserId = _userId, CategoryId = _categoryId, Amount = 123.45m,
         Date = new DateTime(2026, 11, 3, 12, 34, 56, DateTimeKind.Utc).AddTicks(1234),
         Comment = "О'Коннор; DROP TABLE Expenses; --"
     };

@@ -1,4 +1,5 @@
 using Domain.Models;
+using Domain.Interfaces;
 using Infrastructure.Data;
 using Infrastructure.Repositories;
 
@@ -9,18 +10,21 @@ public sealed class SqliteCategoryRepositoryTests : IDisposable
     private readonly string _directory = Path.Combine(Path.GetTempPath(), "ExpenseTrackerCategories", Guid.NewGuid().ToString("N"));
     private readonly SqliteConnectionFactory _connections;
     private readonly SqliteCategoryRepository _repository;
+    private readonly SqliteUserRepository _users;
 
     public SqliteCategoryRepositoryTests()
     {
         _connections = new SqliteConnectionFactory("Data Source=categories.db;Pooling=False", _directory);
         new SqliteDatabaseInitializer(_connections).Initialize();
         _repository = new SqliteCategoryRepository(_connections);
+        _users = new SqliteUserRepository(_connections);
     }
 
     [Fact]
     public void RoundTrip_PreservesIdsNullableParentAndSqlLikeName()
     {
-        var parent = new Category { Id = Guid.NewGuid(), UserId = Guid.NewGuid(), Name = "Родитель" };
+        var user = CreateUser(); _users.Add(user);
+        var parent = new Category { Id = Guid.NewGuid(), UserId = user.Id, Name = "Родитель" };
         var child = new Category { Id = Guid.NewGuid(), UserId = parent.UserId, ParentId = parent.Id, Name = "О'Коннор; DROP TABLE Categories; --" };
         _repository.Add(parent);
         _repository.Add(child);
@@ -34,7 +38,8 @@ public sealed class SqliteCategoryRepositoryTests : IDisposable
     [Fact]
     public void Reinitialize_PreservesDataWithoutDuplicates_AndAddUpdates()
     {
-        var category = new Category { Id = Guid.NewGuid(), UserId = Guid.NewGuid(), Name = "Еда" };
+        var user = CreateUser(); _users.Add(user);
+        var category = new Category { Id = Guid.NewGuid(), UserId = user.Id, Name = "Еда" };
         _repository.Add(category);
         new SqliteDatabaseInitializer(_connections).Initialize();
         var reopened = new SqliteCategoryRepository(new SqliteConnectionFactory("Data Source=categories.db;Pooling=False", _directory));
@@ -43,6 +48,8 @@ public sealed class SqliteCategoryRepositoryTests : IDisposable
         reopened.Add(category);
         AssertCategory(category, Assert.Single(reopened.GetAllByUser(category.UserId)));
     }
+
+    private static User CreateUser() => new() { Id = Guid.NewGuid(), Email = $"{Guid.NewGuid():N}@test.invalid", Name = "Test", PasswordHash = "hash" };
 
     private static void AssertCategory(Category expected, Category actual)
     {

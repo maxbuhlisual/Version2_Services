@@ -10,6 +10,7 @@ public class SqliteConnectionFactory
     {
         var builder = new SqliteConnectionStringBuilder(connectionString);
         builder.DataSource = Path.GetFullPath(builder.DataSource, basePath);
+        builder.ForeignKeys = true;
         Directory.CreateDirectory(Path.GetDirectoryName(builder.DataSource)!);
         _connectionString = builder.ToString();
     }

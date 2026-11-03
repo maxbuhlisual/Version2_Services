@@ -11,12 +11,16 @@ public sealed class ExpenseTransactionTests : IDisposable
 {
     private readonly string _directory = Path.Combine(Path.GetTempPath(), "ExpenseTransactions", Guid.NewGuid().ToString("N"));
     private readonly SqliteConnectionFactory _factory;
-    private readonly Category _category = new() { Id = Guid.NewGuid(), UserId = Guid.NewGuid(), Name = "Test" };
+    private readonly Category _category;
+    private readonly User _user;
 
     public ExpenseTransactionTests()
     {
         _factory = new SqliteConnectionFactory("Data Source=test.db;Pooling=False;Default Timeout=5", _directory);
         new SqliteDatabaseInitializer(_factory).Initialize();
+        _user = new User { Id = Guid.NewGuid(), Email = $"{Guid.NewGuid():N}@test.invalid", Name = "Test", PasswordHash = "hash" };
+        new SqliteUserRepository(_factory).Add(_user);
+        _category = new Category { Id = Guid.NewGuid(), UserId = _user.Id, Name = "Test" };
         new SqliteCategoryRepository(_factory).Add(_category);
         new BudgetService(new SqliteBudgetRepository(_factory)).SetBudget(_category.UserId, _category.Id, 2026, 11, 2000);
     }
