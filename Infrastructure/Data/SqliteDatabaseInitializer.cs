@@ -26,6 +26,15 @@ public class SqliteDatabaseInitializer(SqliteConnectionFactory connections)
             throw new InvalidOperationException("Обновление Users остановлено: найдены конфликтующие email. Данные сохранены; требуется ручное разрешение конфликтов.");
         connection.Execute("CREATE UNIQUE INDEX IF NOT EXISTS UX_Users_Email_Normalized ON Users(Email COLLATE EMAIL_NORMALIZED);",
             transaction: transaction);
+        connection.Execute("""
+            CREATE TABLE IF NOT EXISTS Categories (
+                Id TEXT NOT NULL PRIMARY KEY,
+                UserId TEXT NOT NULL,
+                Name TEXT NOT NULL,
+                ParentId TEXT NULL
+            );
+            CREATE INDEX IF NOT EXISTS IX_Categories_UserId ON Categories(UserId);
+            """, transaction: transaction);
         transaction.Commit();
     }
 }
