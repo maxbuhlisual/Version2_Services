@@ -6,7 +6,29 @@ using Dapper;
 
 var builder = WebApplication.CreateBuilder(args);
 
-builder.Services.AddControllers();
+builder.Services.AddControllersWithViews(options =>
+    options.Filters.Add(new Microsoft.AspNetCore.Mvc.AutoValidateAntiforgeryTokenAttribute()));
+builder.Services.AddAntiforgery(options =>
+{
+    options.HeaderName = "X-CSRF-TOKEN";
+    options.Cookie.Name = "__Host-ExpenseTracker-CSRF";
+    options.Cookie.SecurePolicy = CookieSecurePolicy.Always;
+    options.Cookie.SameSite = SameSiteMode.Strict;
+    options.Cookie.HttpOnly = true;
+});
+builder.Services.AddAuthentication(Microsoft.AspNetCore.Authentication.Cookies.CookieAuthenticationDefaults.AuthenticationScheme)
+    .AddCookie(options =>
+    {
+        options.Cookie.Name = "__Host-ExpenseTracker-Session";
+        options.Cookie.HttpOnly = true;
+        options.Cookie.SecurePolicy = CookieSecurePolicy.Always;
+        options.Cookie.SameSite = SameSiteMode.Strict;
+        options.ExpireTimeSpan = TimeSpan.FromHours(1);
+        options.SlidingExpiration = false;
+        options.Events.OnRedirectToLogin = context => { context.Response.StatusCode = 401; return Task.CompletedTask; };
+        options.Events.OnRedirectToAccessDenied = context => { context.Response.StatusCode = 403; return Task.CompletedTask; };
+    });
+builder.Services.AddAuthorization();
 
 string connectionString = builder.Configuration.GetConnectionString("ExpenseTracker")
     ?? throw new InvalidOperationException("Не задана строка подключения ExpenseTracker.");
@@ -50,10 +72,22 @@ using (var connection = app.Services.GetRequiredService<SqliteConnectionFactory>
 if (app.Environment.IsDevelopment())
 {
     app.UseSwagger();
-    app.UseSwaggerUI();
+    app.UseSwaggerUI(options => options.UseRequestInterceptor("""
+        async (request) => {
+            if (!["GET", "HEAD", "OPTIONS"].includes(request.method.toUpperCase())) {
+                const response = await fetch('/api/Users/csrf', { credentials: 'same-origin' });
+                if (!response.ok) throw new Error('Cannot obtain CSRF token');
+                const data = await response.json();
+                request.headers['X-CSRF-TOKEN'] = data.token;
+            }
+            request.credentials = 'same-origin';
+            return request;
+        }
+        """));
 }
 
 app.UseHttpsRedirection();
+app.UseAuthentication();
 app.UseAuthorization();
 
 app.UseExceptionHandler(errorApp =>
