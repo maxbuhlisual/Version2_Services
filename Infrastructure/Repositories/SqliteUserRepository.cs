@@ -12,6 +12,8 @@ public class SqliteUserRepository(SqliteConnectionFactory connections) : IUserRe
         using var connection = connections.CreateConnection();
         connection.Open();
         // Как и прежний репозиторий, сохраняем или заменяем пользователя по Id.
+        try
+        {
         connection.Execute("""
             INSERT INTO Users (Id, Email, Name, PasswordHash)
             VALUES (@Id, @Email, @Name, @PasswordHash)
@@ -19,7 +21,12 @@ public class SqliteUserRepository(SqliteConnectionFactory connections) : IUserRe
                 Email = excluded.Email,
                 Name = excluded.Name,
                 PasswordHash = excluded.PasswordHash;
-            """, new { Id = user.Id.ToString("D"), user.Email, user.Name, user.PasswordHash });
+            """, new { Id = user.Id.ToString("D"), Email = EmailAddress.Normalize(user.Email), user.Name, user.PasswordHash });
+        }
+        catch (Microsoft.Data.Sqlite.SqliteException exception) when (exception.SqliteExtendedErrorCode == 2067)
+        {
+            throw new ArgumentException("Пользователь с таким email уже зарегистрирован.", exception);
+        }
     }
 
     public User? GetById(Guid id)
@@ -37,8 +44,8 @@ public class SqliteUserRepository(SqliteConnectionFactory connections) : IUserRe
         using var connection = connections.CreateConnection();
         connection.Open();
         var row = connection.QueryFirstOrDefault<UserRow>("""
-            SELECT Id, Email, Name, PasswordHash FROM Users WHERE Email = @Email;
-            """, new { Email = email });
+            SELECT Id, Email, Name, PasswordHash FROM Users WHERE Email = @Email COLLATE EMAIL_NORMALIZED;
+            """, new { Email = EmailAddress.Normalize(email) });
         return ToUser(row);
     }
 

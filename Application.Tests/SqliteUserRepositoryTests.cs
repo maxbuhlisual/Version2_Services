@@ -81,6 +81,55 @@ public sealed class SqliteUserRepositoryTests : IDisposable
         Assert.Equal(1L, (long)command.ExecuteScalar()!);
     }
 
+    [Fact]
+    public void LegacyUser_LoginAfterMigration_PreservesIdAndPassword()
+    {
+        using var connection = _connections.CreateConnection();
+        connection.Open();
+        Dapper.SqlMapper.Execute(connection, "DROP INDEX UX_Users_Email_Normalized;");
+        var service = new Application.Services.UserService(_repository);
+        User user = service.CreateUser("old@example.invalid", "Old", "old-password");
+        Dapper.SqlMapper.Execute(connection, "UPDATE Users SET Email = '  Old@Example.Invalid  ';");
+        new SqliteDatabaseInitializer(_connections).Initialize();
+        Assert.Equal(user.Id, service.Login(" OLD@example.invalid ", "old-password").Id);
+        Assert.Throws<ArgumentException>(() => service.CreateUser(" old@EXAMPLE.invalid ", "Other", "new-password"));
+        Assert.Equal(user.Id, service.Login("old@example.invalid", "old-password").Id);
+        Assert.Throws<ArgumentException>(() => service.Login("old@example.invalid", "new-password"));
+    }
+
+    [Fact]
+    public async Task ConcurrentRegistrations_OnlyOneSucceeds()
+    {
+        using var barrier = new Barrier(2);
+        Task<bool> Register(string email) => Task.Run(() =>
+        {
+            barrier.SignalAndWait();
+            try
+            {
+                new Application.Services.UserService(_repository).CreateUser(email, "Test", "password");
+                return true;
+            }
+            catch (ArgumentException) { return false; }
+        });
+        bool[] results = await Task.WhenAll(Register("race@example.invalid"), Register(" RACE@example.invalid "));
+        Assert.Single(results, result => result);
+    }
+
+    [Fact]
+    public void ConflictingLegacyEmails_StopMigrationWithoutDeletingData()
+    {
+        using var connection = _connections.CreateConnection();
+        connection.Open();
+        Dapper.SqlMapper.Execute(connection, "DROP INDEX UX_Users_Email_Normalized;");
+        User first = CreateUser();
+        User second = CreateUser();
+        _repository.Add(first);
+        _repository.Add(second);
+        Assert.Throws<InvalidOperationException>(() => new SqliteDatabaseInitializer(_connections).Initialize());
+        Assert.NotNull(_repository.GetById(first.Id));
+        Assert.NotNull(_repository.GetById(second.Id));
+    }
+
     private static User CreateUser() => new()
     {
         Id = Guid.NewGuid(),
@@ -93,7 +142,7 @@ public sealed class SqliteUserRepositoryTests : IDisposable
     {
         Assert.NotNull(actual);
         Assert.Equal(expected.Id, actual.Id);
-        Assert.Equal(expected.Email, actual.Email);
+        Assert.Equal(EmailAddress.Normalize(expected.Email), actual.Email);
         Assert.Equal(expected.Name, actual.Name);
         Assert.Equal(expected.PasswordHash, actual.PasswordHash);
     }

@@ -32,6 +32,10 @@ public class UserService
             throw new ArgumentException("Пароль не может быть пустым");
         }
         
+        email = EmailAddress.Normalize(email);
+        if (_userRepository.GetByEmail(email) != null)
+            throw new ArgumentException("Пользователь с таким email уже зарегистрирован.");
+
         User user = new User()
         {
             Id = Guid.NewGuid(),
@@ -44,7 +48,7 @@ public class UserService
     }
     public User Login(string email, string password)
     {
-        User? user = _userRepository.GetByEmail(email);
+        User? user = _userRepository.GetByEmail(EmailAddress.Normalize(email));
 
         if (user == null)
         {

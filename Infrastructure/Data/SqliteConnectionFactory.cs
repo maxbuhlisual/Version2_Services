@@ -17,6 +17,11 @@ public class SqliteConnectionFactory
     // Вызывающий код открывает и освобождает собственное соединение через using.
     public SqliteConnection CreateConnection()
     {
-        return new SqliteConnection(_connectionString);
+        var connection = new SqliteConnection(_connectionString);
+        connection.CreateCollation("EMAIL_NORMALIZED", (left, right) =>
+            StringComparer.Ordinal.Compare(
+                Domain.Models.EmailAddress.Normalize(left),
+                Domain.Models.EmailAddress.Normalize(right)));
+        return connection;
     }
 }
