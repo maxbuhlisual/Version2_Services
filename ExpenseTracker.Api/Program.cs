@@ -22,6 +22,7 @@ builder.Services.AddScoped<IBudgetRepository, SqliteBudgetRepository>();
 
 builder.Services.AddScoped<UserService>();
 builder.Services.AddScoped<CategoryService>();
+builder.Services.AddScoped<IExpenseBudgetWriter, SqliteExpenseBudgetWriter>();
 builder.Services.AddScoped<ExpenseService>();
 builder.Services.AddScoped<BudgetService>();
 builder.Services.AddScoped<ReportService>();

@@ -7,9 +7,11 @@ public class ExpenseService
     private readonly IExpenseRepository _expense;
     private readonly ICategoryRepository _categories;
     private readonly BudgetService _budgetService;
+    private readonly IExpenseBudgetWriter? _writer;
 
-    public ExpenseService(IExpenseRepository expense, ICategoryRepository categories, BudgetService budgetService)
+    public ExpenseService(IExpenseRepository expense, ICategoryRepository categories, BudgetService budgetService, IExpenseBudgetWriter? writer = null)
     {
+        _writer = writer;
         _expense = expense;
         _categories = categories;
         _budgetService = budgetService;
@@ -43,6 +45,12 @@ public class ExpenseService
             Date = date,
             Comment = comment
         };
+        if (_writer != null)
+        {
+            _writer.Save(expense);
+            return expense;
+        }
+
         _expense.Add(expense);
 
         bool budgetExists = _budgetService.HasBudget(userId, categoryId, date.Year, date.Month);

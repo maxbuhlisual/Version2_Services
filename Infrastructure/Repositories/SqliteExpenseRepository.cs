@@ -12,6 +12,12 @@ public class SqliteExpenseRepository(SqliteConnectionFactory connections) : IExp
     {
         using var connection = connections.CreateConnection();
         connection.Open();
+        Add(connection, null, expense);
+    }
+
+    internal static void Add(Microsoft.Data.Sqlite.SqliteConnection connection,
+        Microsoft.Data.Sqlite.SqliteTransaction? transaction, Expense expense)
+    {
         connection.Execute("""
             INSERT INTO Expenses (Id, UserId, CategoryId, Amount, DateTicks, DateKind, Comment)
             VALUES (@Id, @UserId, @CategoryId, @Amount, @DateTicks, @DateKind, @Comment)
@@ -20,7 +26,7 @@ public class SqliteExpenseRepository(SqliteConnectionFactory connections) : IExp
                 DateKind = excluded.DateKind, Comment = excluded.Comment;
             """, new { Id = expense.Id.ToString("D"), UserId = expense.UserId.ToString("D"),
                 CategoryId = expense.CategoryId.ToString("D"), Amount = expense.Amount.ToString(CultureInfo.InvariantCulture),
-                DateTicks = expense.Date.Ticks, DateKind = (int)expense.Date.Kind, expense.Comment });
+                DateTicks = expense.Date.Ticks, DateKind = (int)expense.Date.Kind, expense.Comment }, transaction: transaction);
     }
 
     public List<Expense> GetAllByUser(Guid userId) => Read(
