@@ -1,7 +1,7 @@
 """HTTP regression check. Run: python3 scripts/check_expense_security.py
 Requires .NET 10 SDK, Python 3 and OpenSSL. All generated files are temporary.
 """
-import pathlib, tempfile, subprocess, os, ssl, urllib.request, urllib.error, http.cookiejar, json, time, sqlite3
+import pathlib, tempfile, subprocess, os, ssl, urllib.request, urllib.error, http.cookiejar, json, time, sqlite3, datetime
 import socket
 import re
 from decimal import Decimal
@@ -54,6 +54,36 @@ with tempfile.TemporaryDirectory(prefix='expense-cookie-') as temp:
                 except urllib.error.URLError:time.sleep(.1)
             else:
                 log.flush();log.seek(0);print(log.read());print(call(guest,'/api/Users/csrf'));raise RuntimeError('startup timeout')
+            with guest[0].open(base+'/',timeout=5) as response:
+                page=response.read().decode()
+                assert response.status==200 and 'ExpenseTracker · Месяц' in page and 'Сохранить расход' in page
+                assert 'api/expenses/' in page and 'localStorage' not in page
+                print('HTTPS / serves ExpenseTracker UI',response.status)
+            with guest[0].open(base+'/swagger',timeout=5) as response:
+                assert response.status==200
+                print('HTTPS /swagger remains available',response.status)
+
+            # Основной пользовательский сценарий интерфейса через тот же HTTPS API и временную SQLite.
+            web_user=client()
+            fictional_email='ui-flow@example.invalid'
+            status,_,registered=post(web_user,'/api/Users/register',{'email':fictional_email,'name':'UI flow','password':'Fictional123!'})
+            assert status==200,(status,registered)
+            status,_,logged_in=post(web_user,'/api/Users/login',{'email':fictional_email,'password':'Fictional123!'})
+            assert status==200 and logged_in['id']==registered['id'],(status,logged_in)
+            status,_,food=post(web_user,'/api/categories',{'userId':registered['id'],'name':'Еда','parentId':None})
+            assert status==200,(status,food)
+            status,_,empty_budgets=call(web_user,'/api/budgets/'+registered['id'])
+            assert status==200 and empty_budgets==[],(status,empty_budgets)
+            expense_date=datetime.date.today().isoformat()
+            status,_,lunch=post(web_user,'/api/expenses',{'userId':registered['id'],'categoryId':food['id'],'amount':550,'date':expense_date+'T12:00:00','comment':'Обед'})
+            assert status==200,(status,lunch)
+            # Запросы ниже моделируют загрузку состояния после обновления страницы.
+            status,_,reloaded=call(web_user,'/api/expenses/'+registered['id'])
+            assert status==200 and len(reloaded)==1,(status,reloaded)
+            month_expenses=[x for x in reloaded if x['date'][:7]==expense_date[:7]]
+            assert len(month_expenses)==1 and month_expenses[0]['id']==lunch['id'] and month_expenses[0]['comment']=='Обед'
+            assert sum((Decimal(str(x['amount'])) for x in month_expenses),Decimal('0'))==Decimal('550')
+            print('HTTP flow register → login → category Еда → expense Обед 550 ₽ → reload: 1 entry, monthly total 550 ₽')
             users=[]
             for label,c in [('A',a),('B',b)]:
                 status,_,user=post(c,'/api/Users/register',{'email':label+'@example.invalid','name':label,'password':'Fictional123!'})
@@ -104,6 +134,8 @@ with tempfile.TemporaryDirectory(prefix='expense-cookie-') as temp:
             # Дополнительный расход А за тот же месяц, отдельный бюджет и дочерние категории.
             budget_a = {'userId':ua['id'],'categoryId':ca['id'],'year':2026,'month':11,'limit':1000}
             assert post(a,'/api/budgets',budget_a)[0] == 200
+            status,_,saved_budgets=call(a,'/api/budgets/'+ua['id'])
+            assert status==200 and len(saved_budgets)==1 and saved_budgets[0]['categoryId']==ca['id'] and Decimal(str(saved_budgets[0]['limit']))==Decimal('1000'),(status,saved_budgets)
             assert post(a,'/api/expenses',dict(expense,userId=ua['id'],categoryId=ca['id'],amount=125))[0] == 200
             for c,u,parent in [(a,ua,ca),(b,ub,cb)]:
                 status,_,child = post(c,'/api/categories',{'userId':u['id'],'name':'Child '+u['name'],'parentId':parent['id']})

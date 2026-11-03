@@ -34,4 +34,11 @@ public class BudgetsController : ControllerBase
         _budgetService.SetBudget(CurrentUserId, request.CategoryId, request.Year, request.Month, request.Limit);
         return Ok();
     }
+
+    [HttpGet("{userId}")]
+    public IActionResult GetUserBudgets(Guid userId)
+    {
+        if (userId != CurrentUserId) return Forbid();
+        return Ok(_budgetService.GetUserBudgets(CurrentUserId));
+    }
 }

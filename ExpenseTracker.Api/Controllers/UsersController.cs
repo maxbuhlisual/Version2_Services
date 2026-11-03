@@ -49,4 +49,12 @@ public class UsersController : ControllerBase
         UserResponse response = new UserResponse { Id = user.Id, Email = user.Email, Name = user.Name };
         return Ok(response);
     }
+
+    [Authorize]
+    [HttpPost("logout")]
+    public async Task<IActionResult> Logout()
+    {
+        await HttpContext.SignOutAsync(CookieAuthenticationDefaults.AuthenticationScheme);
+        return NoContent();
+    }
 }

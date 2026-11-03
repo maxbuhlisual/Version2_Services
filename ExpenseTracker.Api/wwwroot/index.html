@@ -1,0 +1,220 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>ExpenseTracker · Месяц</title>
+  <style>
+    *{box-sizing:border-box}
+    body{margin:0;background:#f5f5ef;color:#21362a;font:16px/1.45 system-ui,sans-serif}
+    main{max-width:620px;margin:auto;padding:22px 18px 48px}
+    header,.row{display:flex;align-items:center;justify-content:space-between;gap:12px}
+    header{padding-bottom:15px;border-bottom:1px solid #cfd7c9}
+    .brand{font-weight:750;letter-spacing:-.04em}
+    .tag{font-size:12px;border:1px solid #b8c6b5;border-radius:20px;padding:3px 10px}
+    h1{font-size:clamp(32px,6vw,48px);letter-spacing:-.055em;line-height:1.1;margin:8px 0 20px}
+    h2{font-size:20px;letter-spacing:-.035em;margin:0}
+    .kicker{margin:26px 0 0;color:#526350;font-size:12px;letter-spacing:.12em;text-transform:uppercase}
+    .hero,.card{border-radius:18px;padding:20px}
+    .hero{background:#223b2d;color:white}
+    .total{display:block;font-size:clamp(42px,9vw,64px);letter-spacing:-.06em;line-height:1.3}
+    button{font:inherit;cursor:pointer}
+    .primary{width:100%;background:#c9ed83;color:#18311f;border:0;border-radius:10px;padding:13px;font-weight:700;margin-top:14px}
+    .card{margin:12px 0 22px;background:#fff;border:1px solid #dce1d5}
+    progress{width:100%;height:8px;accent-color:#648347;margin:12px 0}
+    small{color:#556456}
+    .item{display:flex;align-items:center;justify-content:space-between;gap:12px;border-bottom:1px solid #dae0d5;padding:13px 2px}
+    .item strong,.item small{display:block;overflow-wrap:anywhere}
+    .value{white-space:nowrap;font-variant-numeric:tabular-nums}
+    .notice{background:#e2f2d0;border-radius:10px;padding:10px 14px;margin:12px 0}
+    [hidden]{display:none!important}
+    label{display:block;margin:16px 0 0;font-weight:600}
+    input,select{display:block;width:100%;font:inherit;color:inherit;background:#fff;border:1px solid #adbaaa;border-radius:9px;margin-top:5px;padding:12px}
+    .back{background:transparent;color:#314d37;border:0;padding:12px 0}
+    .error{color:#922b19;font-weight:600}
+    button:focus-visible,input:focus-visible,select:focus-visible{outline:3px solid #5284ab;outline-offset:2px}
+    .secondary{background:transparent;border:1px solid #adbaaa;border-radius:9px;padding:7px 11px;color:#314d37}
+    .subtle{margin-top:8px;color:#526350}
+  </style>
+</head>
+<body>
+<main>
+  <header><span class="brand">↗ ExpenseTracker</span><span class="tag" id="accountTag">Вход</span></header>
+  <noscript>Для работы интерфейса включите JavaScript.</noscript>
+
+  <section id="auth">
+    <p class="kicker">Личный учёт расходов</p>
+    <h1 id="authTitle">Войти</h1>
+    <p id="authMessage" class="notice" role="status" hidden></p>
+    <label id="nameLabel" hidden>Имя<input id="name" autocomplete="name" maxlength="100"></label>
+    <label>Email<input id="email" type="email" autocomplete="username" maxlength="254" required></label>
+    <label>Пароль<input id="password" type="password" autocomplete="current-password" required></label>
+    <p id="authError" class="error" role="alert" hidden></p>
+    <button type="button" class="primary" id="authSubmit">Войти</button>
+    <button type="button" class="back" id="authToggle">Создать аккаунт</button>
+  </section>
+
+  <section id="overview" hidden>
+    <p class="kicker">Обзор месяца</p><h1 id="month">Месяц</h1>
+    <div class="hero">Потрачено за месяц<strong class="total" id="total">0 ₽</strong>
+      <button type="button" class="primary" id="add">＋ Добавить расход</button>
+    </div>
+    <p id="notice" class="notice" role="status" hidden></p>
+    <div class="card" id="budgetCard" hidden>
+      <h2 id="budgetTitle">Бюджет</h2><progress id="progress" max="100" value="0" aria-label="Использовано из бюджета"></progress>
+      <div class="row"><small id="spent"></small><strong id="balance"></strong></div>
+    </div>
+    <div class="card" id="firstCategory" hidden>
+      <h2>Начните с категории</h2>
+      <p class="subtle">Создайте первую категорию, например «Еда».</p>
+      <label>Название<input id="firstCategoryName" maxlength="100" value="Еда"></label>
+      <p id="categoryError" class="error" role="alert" hidden></p>
+      <button type="button" class="primary" id="createFirstCategory">Создать категорию</button>
+    </div>
+    <div class="row"><h2>Расходы</h2><small id="count"></small></div><div id="list"></div>
+    <p class="row"><small id="welcome"></small><button class="secondary" type="button" id="logout">Выйти</button></p>
+  </section>
+
+  <section id="editor" hidden>
+    <button type="button" class="back" id="cancel">← К обзору</button>
+    <h1>Новый расход</h1>
+    <label>Сумма, ₽<input id="amount" type="text" inputmode="decimal" placeholder="550" maxlength="16"></label>
+    <label>Категория<select id="category"></select></label>
+    <label>Дата<input id="date" type="date"></label>
+    <label>Комментарий <small>по желанию</small><input id="note" placeholder="Обед" maxlength="100"></label>
+    <p id="error" class="error" role="alert" hidden></p>
+    <button type="button" class="primary" id="save">Сохранить расход</button>
+  </section>
+</main>
+<script>
+(() => {
+  const byId=id=>document.getElementById(id);
+  const now=new Date();
+  const pad=n=>String(n).padStart(2,'0');
+  const period=now.getFullYear()+'-'+pad(now.getMonth()+1);
+  const today=period+'-'+pad(now.getDate());
+  const rub=value=>Number(value).toLocaleString('ru-RU',{minimumFractionDigits:0,maximumFractionDigits:2})+' ₽';
+  const title=now.toLocaleDateString('ru-RU',{month:'long',year:'numeric'}).replace(/\s*г\.$/,'');
+  const monthTitle=title.charAt(0).toUpperCase()+title.slice(1);
+  const state={user:null,categories:[],expenses:[],budgets:[],register:false};
+
+  function message(id,text){byId(id).textContent=text;byId(id).hidden=!text;}
+  async function api(path,options={}){
+    const request={...options,credentials:'same-origin',headers:{...(options.headers||{})}};
+    const method=(request.method||'GET').toUpperCase();
+    if(!['GET','HEAD','OPTIONS'].includes(method)){
+      const tokenResponse=await fetch('/api/Users/csrf',{credentials:'same-origin',cache:'no-store'});
+      if(!tokenResponse.ok)throw new Error('Не удалось получить CSRF-токен. Обновите страницу и попробуйте снова.');
+      const {token}=await tokenResponse.json();
+      request.headers['X-CSRF-TOKEN']=token;
+      request.headers['Content-Type']='application/json';
+    }
+    const response=await fetch(path,request);
+    const text=await response.text();
+    let body=null;
+    if(text){try{body=JSON.parse(text)}catch{body=text}}
+    if(!response.ok){
+      if(response.status===401)throw new Error('Сессия не найдена или истекла. Войдите снова.');
+      if(response.status===403)throw new Error('У этой сессии нет доступа к запрошенным данным.');
+      throw new Error(body&&typeof body==='object'?(body.error||body.title||'Запрос не выполнен (HTTP '+response.status+').'):'Запрос не выполнен (HTTP '+response.status+').');
+    }
+    return body;
+  }
+  function showScreen(name){
+    byId('auth').hidden=name!=='auth';byId('overview').hidden=name!=='overview';byId('editor').hidden=name!=='editor';
+    if(name==='auth')byId('email').focus();
+    if(name==='editor')byId('amount').focus();
+    if(name==='overview')byId('add').focus();
+  }
+  function readUser(){
+    try{const value=JSON.parse(sessionStorage.getItem('expenseTrackerUser'));return value&&typeof value.id==='string'?value:null}catch{return null}
+  }
+  function saveUser(user){state.user=user;sessionStorage.setItem('expenseTrackerUser',JSON.stringify({id:user.id,name:user.name,email:user.email}));}
+  function render(){
+    const entries=state.expenses.filter(x=>typeof x.date==='string'&&x.date.slice(0,7)===period);
+    const total=entries.reduce((sum,x)=>sum+Number(x.amount),0);
+    byId('month').textContent=monthTitle;byId('total').textContent=rub(total);byId('count').textContent='Записей: '+entries.length;
+    byId('welcome').textContent=state.user?.name||'';byId('accountTag').textContent=state.user?.email||'Вход';
+    const list=byId('list');list.replaceChildren();
+    for(const x of [...entries].sort((a,b)=>b.date.localeCompare(a.date))){
+      const row=document.createElement('div'),details=document.createElement('div'),value=document.createElement('strong');
+      row.className='item';value.className='value';value.textContent='−'+rub(x.amount);
+      const category=state.categories.find(c=>c.id===x.categoryId)?.name||'Категория';
+      const date=x.date.slice(0,10);const label=date===today?'Сегодня':date.slice(8,10)+'.'+date.slice(5,7);
+      const name=document.createElement('strong');name.textContent=x.comment?.trim()||category;
+      const meta=document.createElement('small');meta.textContent=label+' · '+category;
+      details.append(name,meta);row.append(details,value);list.append(row);
+    }
+    const budget=state.budgets.find(x=>Number(x.year)===now.getFullYear()&&Number(x.month)===now.getMonth()+1);
+    if(budget){
+      const category=state.categories.find(c=>c.id===budget.categoryId);
+      if(category){const limit=Number(budget.limit),spent=Number(budget.spent);byId('budgetCard').hidden=false;byId('budgetTitle').textContent='Бюджет · '+category.name;byId('progress').value=limit>0?Math.min(100,spent/limit*100):0;byId('spent').textContent=rub(spent)+' из '+rub(limit);byId('balance').textContent=(spent>limit?'Сверх бюджета ':'Осталось ')+rub(Math.abs(limit-spent));}
+      else byId('budgetCard').hidden=true;
+    }else byId('budgetCard').hidden=true;
+    byId('firstCategory').hidden=state.categories.length!==0;
+    const select=byId('category');select.replaceChildren();
+    for(const category of state.categories){const option=document.createElement('option');option.value=category.id;option.textContent=category.name;select.append(option)}
+  }
+  async function loadData(){
+    const [categories,expenses,budgets]=await Promise.all([
+      api('/api/categories/'+encodeURIComponent(state.user.id)),
+      api('/api/expenses/'+encodeURIComponent(state.user.id)),
+      api('/api/budgets/'+encodeURIComponent(state.user.id))
+    ]);
+    state.categories=categories;state.expenses=expenses;state.budgets=budgets;render();showScreen('overview');
+  }
+  async function startSession(user){saveUser(user);await loadData();}
+  byId('authToggle').onclick=()=>{
+    state.register=!state.register;byId('authTitle').textContent=state.register?'Создать аккаунт':'Войти';
+    byId('authSubmit').textContent=state.register?'Зарегистрироваться':'Войти';byId('authToggle').textContent=state.register?'Уже есть аккаунт? Войти':'Создать аккаунт';
+    byId('nameLabel').hidden=!state.register;byId('password').autocomplete=state.register?'new-password':'current-password';message('authError','');message('authMessage','');
+  };
+  byId('authSubmit').onclick=async()=>{
+    message('authError','');message('authMessage','');
+    const email=byId('email').value.trim(),password=byId('password').value;
+    if(!email||!password){message('authError','Заполните email и пароль.');return}
+    try{
+      if(state.register){
+        const name=byId('name').value.trim();if(!name){message('authError','Укажите имя.');byId('name').focus();return}
+        await api('/api/Users/register',{method:'POST',body:JSON.stringify({email,name,password})});
+        state.register=false;byId('authTitle').textContent='Войти';byId('authSubmit').textContent='Войти';byId('authToggle').textContent='Создать аккаунт';byId('nameLabel').hidden=true;byId('password').autocomplete='current-password';byId('email').value=email;byId('password').value=password;
+        message('authMessage','Аккаунт создан. Теперь войдите с этим email и паролем.');return;
+      }
+      const user=await api('/api/Users/login',{method:'POST',body:JSON.stringify({email,password})});await startSession(user);
+    }catch(error){message('authError',error.message)}
+  };
+  byId('createFirstCategory').onclick=async()=>{
+    message('categoryError','');const name=byId('firstCategoryName').value.trim();if(!name){message('categoryError','Введите название категории.');byId('firstCategoryName').focus();return}
+    try{const category=await api('/api/categories',{method:'POST',body:JSON.stringify({userId:state.user.id,name,parentId:null})});state.categories.push(category);render();message('notice','Категория «'+category.name+'» создана.');}
+    catch(error){message('categoryError',error.message)}
+  };
+  byId('add').onclick=()=>{
+    byId('amount').value='';byId('category').value=state.categories[0]?.id||'';byId('date').value=today;byId('note').value='';message('error','');message('notice','');
+    byId('date').min=period+'-01';byId('date').max=today;showScreen('editor');
+  };
+  byId('cancel').onclick=()=>showScreen('overview');
+  function invalid(id,text){message('error',text);byId(id).focus();}
+  async function saveExpense(){
+    if(byId('editor').hidden)return;
+    const raw=byId('amount').value.trim().replace(/\s/g,'').replace(',','.');
+    if(!/^\d{1,9}(\.\d{1,2})?$/.test(raw))return invalid('amount','Введи сумму в рублях, например 550 или 125,50.');
+    const amount=Number(raw);if(!Number.isFinite(amount)||amount<=0)return invalid('amount','Сумма должна быть больше нуля.');
+    const date=byId('date').value;if(!date||!date.startsWith(period+'-')||date>today)return invalid('date','Выбери прошедшую или сегодняшнюю дату в текущем месяце.');
+    const categoryId=byId('category').value;if(!categoryId)return invalid('category','Сначала создай категорию.');
+    message('error','');
+    try{
+      await api('/api/expenses',{method:'POST',body:JSON.stringify({userId:state.user.id,categoryId,amount,date:date+'T12:00:00',comment:byId('note').value.trim()||null})});
+      await loadData();message('notice','✓ Расход на '+rub(amount)+' добавлен.');
+    }catch(error){message('error','Не удалось сохранить расход: '+error.message);}
+  }
+  byId('save').onclick=saveExpense;
+  byId('editor').addEventListener('keydown',event=>{if(event.key==='Enter'&&event.target.tagName==='INPUT'){event.preventDefault();saveExpense()}});
+  byId('logout').onclick=async()=>{try{await api('/api/Users/logout',{method:'POST'});}catch(error){message('notice',error.message);return}sessionStorage.removeItem('expenseTrackerUser');state.user=null;state.categories=[];state.expenses=[];state.budgets=[];showScreen('auth');};
+  byId('month').textContent=monthTitle;
+  state.user=readUser();
+  if(state.user){loadData().catch(error=>{if(error.message.startsWith('Сессия не найдена'))sessionStorage.removeItem('expenseTrackerUser');state.user=null;message('authMessage',error.message);showScreen('auth')})}
+  else showScreen('auth');
+})();
+</script>
+</body>
+</html>

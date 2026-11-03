@@ -62,4 +62,6 @@ public class BudgetService
         Budget? budget = _budgets.GetByUserCategoryAndPeriod(userId, categoryId, year, month);
         return budget != null;
     }
+
+    public List<Budget> GetUserBudgets(Guid userId) => _budgets.GetAllByUser(userId);
 }
