@@ -47,6 +47,18 @@ public class SqliteDatabaseInitializer(SqliteConnectionFactory connections)
             );
             CREATE INDEX IF NOT EXISTS IX_Expenses_UserId_DateTicks ON Expenses(UserId, DateTicks);
             """, transaction: transaction);
+        connection.Execute("""
+            CREATE TABLE IF NOT EXISTS Budgets (
+                Id TEXT NOT NULL PRIMARY KEY,
+                UserId TEXT NOT NULL,
+                CategoryId TEXT NOT NULL,
+                Year INTEGER NOT NULL,
+                Month INTEGER NOT NULL,
+                "Limit" TEXT NOT NULL,
+                Spent TEXT NOT NULL
+            );
+            CREATE INDEX IF NOT EXISTS IX_Budgets_User_Category_Period ON Budgets(UserId, CategoryId, Year, Month);
+            """, transaction: transaction);
         transaction.Commit();
     }
 }
