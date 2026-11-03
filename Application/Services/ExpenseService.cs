@@ -15,6 +15,8 @@ public class ExpenseService
         _budgetService = budgetService;
     }
 
+    public List<Expense> GetUserExpenses(Guid userId) => _expense.GetAllByUser(userId);
+
     public Expense AddExpense(Guid userId, Guid categoryId, decimal amount, DateTime date, string? comment)
     {
         Category? category = _categories.GetById(categoryId);

@@ -16,6 +16,9 @@ public class ExpensesController : ControllerBase
         _expenseService = expenseService;
     }
 
+    [HttpGet("{userId}")]
+    public IActionResult GetUserExpenses(Guid userId) => Ok(_expenseService.GetUserExpenses(userId));
+
     [HttpPost]
     public IActionResult Add([FromBody] AddExpenseRequest request)
     {

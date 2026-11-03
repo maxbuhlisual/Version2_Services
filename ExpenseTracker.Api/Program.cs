@@ -17,7 +17,7 @@ builder.Services.AddSingleton<SqliteDatabaseInitializer>();
 
 builder.Services.AddScoped<IUserRepository, SqliteUserRepository>();
 builder.Services.AddScoped<ICategoryRepository, SqliteCategoryRepository>();
-builder.Services.AddScoped<IExpenseRepository, ExpenseRepository>();
+builder.Services.AddScoped<IExpenseRepository, SqliteExpenseRepository>();
 builder.Services.AddScoped<IBudgetRepository, BudgetRepository>();
 
 builder.Services.AddScoped<UserService>();
