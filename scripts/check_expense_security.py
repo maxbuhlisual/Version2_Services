@@ -17,6 +17,7 @@ with tempfile.TemporaryDirectory(prefix='expense-cookie-') as temp:
     subprocess.run(['openssl','pkcs12','-export','-out',str(temp/'test.pfx'),'-inkey',str(temp/'key.pem'),'-in',str(temp/'cert.pem'),'-passout','pass:temporary-test'],check=True,stdout=subprocess.DEVNULL,stderr=subprocess.DEVNULL)
     db=temp/'test.db'
     env=dict(os.environ,ConnectionStrings__ExpenseTracker=f'Data Source={db};Pooling=False',ASPNETCORE_ENVIRONMENT='Development',ASPNETCORE_Kestrel__Certificates__Default__Path=str(temp/'test.pfx'),ASPNETCORE_Kestrel__Certificates__Default__Password='temporary-test')
+    env['Logging__LogLevel__Microsoft.AspNetCore.Mvc.ViewFeatures']='Information'
     with socket.socket() as listener:
         listener.bind(('127.0.0.1', 0))
         port = listener.getsockname()[1]
@@ -25,11 +26,12 @@ with tempfile.TemporaryDirectory(prefix='expense-cookie-') as temp:
         jar=http.cookiejar.CookieJar()
         opener=urllib.request.build_opener(urllib.request.HTTPSHandler(context=ssl.create_default_context(cafile=str(temp/'cert.pem'))),urllib.request.HTTPCookieProcessor(jar))
         return opener,jar
-    def call(client,path,data=None,token=None):
+    def call(client,path,data=None,token=None,raw_body=None):
         headers={}
-        if data is not None: headers['Content-Type']='application/json'
+        if data is not None or raw_body is not None: headers['Content-Type']='application/json'
         if token is not None: headers['X-CSRF-TOKEN']=token
-        req=urllib.request.Request(base+path,data=None if data is None else json.dumps(data).encode(),headers=headers)
+        payload=raw_body if raw_body is not None else (None if data is None else json.dumps(data).encode())
+        req=urllib.request.Request(base+path,data=payload,headers=headers)
         try:
             with client[0].open(req,timeout=5) as response:
                 raw=response.read().decode()
@@ -58,6 +60,7 @@ with tempfile.TemporaryDirectory(prefix='expense-cookie-') as temp:
                 page=response.read().decode()
                 assert response.status==200 and 'ExpenseTracker · Месяц' in page and 'Сохранить расход' in page
                 assert 'api/expenses/' in page and 'localStorage' not in page
+                assert "fetch('/api/Users/csrf'" in page and 'X-CSRF-TOKEN' in page
                 print('HTTPS / serves ExpenseTracker UI',response.status)
             with guest[0].open(base+'/swagger',timeout=5) as response:
                 assert response.status==200
@@ -66,10 +69,29 @@ with tempfile.TemporaryDirectory(prefix='expense-cookie-') as temp:
             # Основной пользовательский сценарий интерфейса через тот же HTTPS API и временную SQLite.
             web_user=client()
             fictional_email='ui-flow@example.invalid'
-            status,_,registered=post(web_user,'/api/Users/register',{'email':fictional_email,'name':'UI flow','password':'Fictional123!'})
+            status,csrf_headers,csrf_body=call(web_user,'/api/Users/csrf')
+            csrf_cookie=csrf_headers.get('Set-Cookie','')
+            assert status==200 and csrf_body.get('token'),(status,csrf_body)
+            assert '__Host-ExpenseTracker-CSRF=' in csrf_cookie and all(flag in csrf_cookie.lower() for flag in ['secure','httponly','samesite=strict']),csrf_cookie
+            print('CSRF GET: request token returned; Secure, HttpOnly, SameSite=Strict cookie stored; client sends X-CSRF-TOKEN')
+            anonymous_token=csrf_body['token']
+            missing_status,_,missing_body=call(web_user,'/api/Users/register',{'email':'csrf-missing@example.invalid','name':'No token','password':'Fictional123!'})
+            assert missing_status==400 and json.loads(missing_body).get('status')==400,(missing_status,missing_body)
+            status,_,registered=call(web_user,'/api/Users/register',{'email':fictional_email,'name':'UI flow','password':'Fictional123!'},anonymous_token)
             assert status==200,(status,registered)
-            status,_,logged_in=post(web_user,'/api/Users/login',{'email':fictional_email,'password':'Fictional123!'})
+            pre_login_token=token(web_user)
+            status,_,logged_in=call(web_user,'/api/Users/login',{'email':fictional_email,'password':'Fictional123!'},pre_login_token)
             assert status==200 and logged_in['id']==registered['id'],(status,logged_in)
+            stale_status,_,stale_body=call(web_user,'/api/Users/register',{'email':'stale-csrf@example.invalid','name':'Stale token','password':'Fictional123!'},pre_login_token)
+            assert stale_status==400 and json.loads(stale_body).get('status')==400,(stale_status,stale_body)
+            current_token=token(web_user)
+            malformed_status,_,malformed_body=call(web_user,'/api/Users/register',token=current_token,raw_body=b'{"email":')
+            assert malformed_status==400 and json.loads(malformed_body).get('errors'),(malformed_status,malformed_body)
+            status,csrf_headers,csrf_body=call(web_user,'/api/Users/csrf')
+            assert status==200 and csrf_body.get('token'),(status,csrf_body)
+            status,_,repeat_register=call(web_user,'/api/Users/register',{'email':'repeat-after-login@example.invalid','name':'Repeat registration','password':'Fictional123!'},csrf_body['token'])
+            assert status==200,(status,repeat_register)
+            print('CSRF registration: missing token 400; valid token 200; stale pre-login token 400; fresh post-login token 200; malformed JSON 400 with model errors')
             status,_,food=post(web_user,'/api/categories',{'userId':registered['id'],'name':'Еда','parentId':None})
             assert status==200,(status,food)
             status,_,empty_budgets=call(web_user,'/api/budgets/'+registered['id'])
@@ -194,6 +216,10 @@ with tempfile.TemporaryDirectory(prefix='expense-cookie-') as temp:
                         print('CSRF interceptor found in',script);break
                 except urllib.error.HTTPError: pass
             else: raise AssertionError('CSRF interceptor not found')
+            log.flush();log.seek(0);server_log=log.read()
+            assert 'The required antiforgery header value "X-CSRF-TOKEN" is not present.' in server_log, 'Server log did not identify the missing CSRF header'
+            assert 'The provided antiforgery token was meant for a different claims-based user than the current user.' in server_log, 'Server log did not identify the stale pre-login token'
+            print('Server log confirms 400 causes: missing X-CSRF-TOKEN and token bound to previous claims identity')
             print('PASS: all HTTP checks; expense count and budget Spent:',snapshot())
         finally:
             process.terminate()
